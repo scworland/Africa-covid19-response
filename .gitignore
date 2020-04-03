@@ -1,0 +1,8 @@
+*.Rout
+*.RData
+*.Rhistory
+*.Rproj.user
+*.Ruserdata
+*.DS_Store
+.Rproj.user
+Africa-covid19-response.Rproj

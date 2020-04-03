@@ -1,0 +1,1 @@
+Scripts to scrape and aggregate news articles related to COVID-19 in Africa
