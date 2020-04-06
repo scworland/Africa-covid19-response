@@ -21,12 +21,13 @@ Load csv of twitter handles,
 ```{r}
 news_sites <- read_csv('data/africa_news_sites_4_6_2020.csv', na = c("null",""," ")) %>%
   set_names(c("news_url", "twitter_handle"))
+
 print(news_sites)
 ```
 
 To search the handles we need to strip the "@", look up user, and collect the data,
 
-```{r, warning=FALSE, message='FALSE'}
+```{r, warning=FALSE, message=FALSE, eval=FALSE}
 # clean and prepare handles
 handles <- news_sites %>%
   mutate(handle = str_remove(twitter_handle,"@")) %>% # remove @
@@ -34,7 +35,7 @@ handles <- news_sites %>%
   pull(handle) # extract handle column
 
 # search twitter posts from handles
-twitter_timeline <- get_timelines(handles) 
+twitter_timeline <- get_timelines(handles, n=3200) 
 
 # clean post for analysis 
 twitter_posts <- twitter_timeline %>%
@@ -53,7 +54,7 @@ twitter_posts <- twitter_timeline %>%
 Download text from one webpage,
 
 ```{r}
-webpage <- read_html(news_tweets$linked_url[3]) %>%
+webpage <- read_html("https://af.reuters.com/article/topNews/idAFKBN21O1MT-OZATP") %>%
    html_nodes(xpath='//*[@id="root"]/div/main/div[3]/div/div[6]') %>%      
         html_text() 
 
