@@ -53,7 +53,7 @@ twitter_posts <- twitter_timeline %>%
 
 Plot tweets through time,
 
-```{r, fig.width=10,fig.height=7}
+```{r, fig.width=10,fig.height=5}
 twitter_posts <- read_csv("data/twitter_url_complete.csv")
 
 twitter_posts %>%
