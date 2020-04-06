@@ -19,25 +19,35 @@ theme_set(theme_bw(base_size=20))
 Load csv of twitter handles,
 
 ```{r}
-news_sites <- read_csv('data/africa_news_sites.csv', na = c("null",""," "))
+news_sites <- read_csv('data/africa_news_sites_4_6_2020.csv', na = c("null",""," ")) %>%
+  set_names(c("news_url", "twitter_handle"))
 print(news_sites)
 ```
 
 To search the handles we need to strip the "@", look up user, and collect the data,
 
 ```{r, warning=FALSE, message='FALSE'}
-news_tweets <- news_sites %>%
-  mutate(screen_name = str_remove(twitter_handle,"@")) %>% # remove @
-  drop_na(screen_name) %>% # remove rows without handles
-  pull(screen_name) %>% # extract screen name column
-  lookup_users() %>% # lookup user information
-  tweets_data() %>% # load tweets
-  filter(created_at >= '2019-12-01') %>% # filter for recent tweets
+# clean and prepare handles
+handles <- news_sites %>%
+  mutate(handle = str_remove(twitter_handle,"@")) %>% # remove @
+  drop_na(handle) %>% # remove rows without handles
+  pull(handle) # extract handle column
+
+# search twitter posts from handles
+twitter_timeline <- get_timelines(handles) 
+
+# clean post for analysis 
+twitter_posts <- twitter_timeline %>%
+  mutate(text=tolower(text)) %>%
+  filter(stringr::str_detect(text, 'corona|coronavirus|virus|novel|covid|covid-19|pandemic')) %>%
   select(created_at,screen_name,text,favorite_count,retweet_count,
          hashtags, linked_url=urls_expanded_url) %>% # select specific columns
-  unnest(linked_url) # convert url from list to column
+  unnest(linked_url) %>% # convert url from list to column
+  mutate(hashtags = set_names(hashtags, screen_name), # add names to list
+         hashtags = map(hashtags, str_c, collapse=", ")) %>% # create char string
+  unnest(hashtags) # convert list to column 
 
-head(news_tweets)
+# write_csv(twitter_posts,"data/twitter_url_sample.csv")
 ```
 
 Download text from one webpage,
@@ -49,9 +59,5 @@ webpage <- read_html(news_tweets$linked_url[3]) %>%
 
 print(webpage)
 ```
-
-
-
-
 
 
