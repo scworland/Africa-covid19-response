@@ -2,16 +2,14 @@
 title: "COVID19 Africa response"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
-  html_notebook:
-    code_folding: hide
-    html_preview: true
+  github_document:
+    html_preview: false
     toc: true
     toc_depth: 2
 ---
 
 ```{r setup, echo=FALSE, include=FALSE}
-knitr::opts_knit$set(root.dir = normalizePath("~/Documents/freightwaves/proj-sworland-simple-rates")) 
-
+knitr::opts_knit$set(root.dir = normalizePath("~/Documents/freightwaves/Africa-covid19-response")) 
 library(rtweet)
 library(tidyverse)
 library(rvest)
@@ -22,31 +20,34 @@ Load csv of twitter handles,
 
 ```{r}
 news_sites <- read_csv('data/africa_news_sites.csv', na = c("null",""," "))
-head(news_sites)
+print(news_sites)
 ```
 
 To search the handles we need to strip the "@", look up user, and collect the data,
 
 ```{r, warning=FALSE, message='FALSE'}
 news_tweets <- news_sites %>%
-  mutate(screen_name = str_remove(twitter_handle,"@")) %>%
-  drop_na(screen_name) %>%
-  pull(screen_name) %>%
-  lookup_users() %>%
-  tweets_data() %>%
-  filter(created_at >= '2019-12-01') %>%
-  select(created_at,screen_name,text,favorite_count,
-         retweet_count,hashtags,linked_url=urls_expanded_url) %>%
-  unnest(linked_url)
+  mutate(screen_name = str_remove(twitter_handle,"@")) %>% # remove @
+  drop_na(screen_name) %>% # remove rows without handles
+  pull(screen_name) %>% # extract screen name column
+  lookup_users() %>% # lookup user information
+  tweets_data() %>% # load tweets
+  filter(created_at >= '2019-12-01') %>% # filter for recent tweets
+  select(created_at,screen_name,text,favorite_count,retweet_count,
+         hashtags, linked_url=urls_expanded_url) %>% # select specific columns
+  unnest(linked_url) # convert url from list to column
 
+head(news_tweets)
 ```
 
-Lookup data on the news handles to make sure we are looking at what we think we are,
+Download text from one webpage,
 
 ```{r}
-hold <- read_html(news_tweets$linked_url[3]) %>%
+webpage <- read_html(news_tweets$linked_url[3]) %>%
    html_nodes(xpath='//*[@id="root"]/div/main/div[3]/div/div[6]') %>%      
         html_text() 
+
+print(webpage)
 ```
 
 
