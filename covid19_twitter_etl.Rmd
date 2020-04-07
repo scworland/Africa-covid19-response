@@ -1,0 +1,62 @@
+---
+title: "ETL of Raw Twitter Data"
+author: "Alex Baker"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  github_document:
+    html_preview: false
+    toc: true
+    toc_depth: 2
+---
+
+# Load Packages and Scrapped Tweets.
+
+```{r setup, echo=FALSE, include=FALSE}
+knitr::opts_knit$set(root.dir = normalizePath("~/Documents/projects/Africa-covid19-response")) 
+
+library(tm)
+library(cld2)
+library(rvest)
+library(rtweet)
+library(tidytext)
+library(textstem)
+library(tidyverse)
+
+theme_set(theme_bw(base_size=20))
+twitter_posts <- read_csv("data/twitter_url_complete.csv")
+stop_words = stopwords('en')
+```
+
+# Extraction of Data from Tweets
+
+One thing i need to do is make sure i can still track the 
+
+## Cleaning Twitter Text Data
+
+Here's an initial ETL pipeline to clean and prep text data from tweets. Pipeline starts off by removing embedded urls and new line characters from tweets. Then moves on to strip whitespace and then remove punctuations from the text. Next we remove all empty tweets (tweets sharing links) and detect what language was used to write the tweet. Using the CLD2 model (which performs better than CLD3) I detect all tweets writen in english and remove all non-english tweets. Finally, I normalize the words by stemming (normalizing words within the same part of speech) and then lemmatize the words (normalize words across parts of speech).
+
+The text that i am going to vectorize off of is stored in the normalized column. I created this column so i can store the original text from the tweet (further thought is required in how to organize the processed data).
+
+**Concerns**
+My major concern primarily revolves around the stem and lemmatizers. I am not sure i am utilizing them in the most efficient way. Need to review the relevant literature.
+
+```{r}
+cleaned_twitter_data = twitter_posts %>%
+                        mutate(text = gsub(" ?(f|ht)(tp)(s?)(://)(.*)[.|/](.*)", "", text), # remove urls embedded into the tweet text
+                              text = gsub("[\r\n]", " ", text), # remove new line characters and replace them with white space
+                              text = stripWhitespace(text), # then remove/strip unnecessary white space
+                              text = removePunctuation(text)) %>% # remove punctuation
+                        filter(text != '') %>% # remove empty tweets
+                        mutate(language_used = detect_language(text)) %>% # detect language used in tweets text using cld2 model by google
+                        filter(language_used == 'en') %>% # remove all non-english tweets
+                        mutate( # finally normalize words in tweets by stem and then lemmantize words
+                          normalized = stem_strings(text),
+                          normalized = lemmatize_strings(text)
+                        )
+```
+
+```{r}
+head(cleaned_twitter_data)
+```
+
+## Vectorizing Twitter Text
