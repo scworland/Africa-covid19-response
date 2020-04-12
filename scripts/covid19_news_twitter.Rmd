@@ -55,7 +55,7 @@ Plot tweets through time,
 
 ```{r, fig.width=13,fig.height=6}
 twitter_posts <- read_csv("data/twitter_url_complete.csv")
-
+```
 twitter_posts %>%
   mutate(date = lubridate::as_date(created_at)) %>%
   group_by(screen_name, date) %>%
