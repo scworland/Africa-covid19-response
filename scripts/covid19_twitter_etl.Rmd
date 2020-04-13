@@ -184,13 +184,12 @@ ETL pipeline assumes it's ran immediately after we scrapped twitter. I ll need t
 twitter_etl = function(new_model=FALSE){
   data_dump = fetch_data_dump_meta()
   raw_tweets = fetch_raw_data(data_dump)
-  print ("cleaning raw data")
+  
   #clean tweets text and conduct topic modelling
   cleaned_tweets = clean_data(raw_tweets)
-  print ("cleaned tweets")
+  
   # save both the cleaned twitter data and the topic embeddings
   cache_cleaned_tweets(cleaned_tweets)
-  print ("saved tweets")
 }
 
 fetch_data_dump_meta = function(data_dump_dir='data/data_dump/'){
@@ -226,9 +225,7 @@ clean_data = function(raw_data){
                     filter(language_used == "en") %>% # remove all non-english tweets
                     mutate(normalized = lemmatize_strings(normalized)) # finally normalize words by lemmantization.
   
-  print ("cleaned text. now trying to detect country")
   cleaned_data = detect_country(cleaned_data)
-  print ("detected countries in tweets.")
   # cache cleaned tweets.
   return (cleaned_data)
 }
@@ -268,7 +265,14 @@ cache_cleaned_tweets = function(cleaned_tweets){
   all_tweets_fp = paste0(cleaned_data_dir, "covid19_africa_cleaned_tweets.csv")
   
   # merge cleaned tweets with all other scrapped tweets together
-  all_cleaned_tweets = read.csv(all_tweets_fp)
+  if (file.exists(all_tweets_fp)){
+    all_cleaned_tweets = read.csv(all_tweets_fp)
+  } else {
+    all_cleaned_tweets = data.frame(screen_name="", created_at="", tweet_id="", geo_location="", text="", favorite_count="", 
+                                    retweet_count="", hashtags="", linked_url="", normalized="", language_used="", country="")
+    colnames(all_cleaned_tweets) = colnames(cleaned_tweets)
+  }
+  
   all_cleaned_tweets = rbind(all_cleaned_tweets, cleaned_tweets)
   
   write.csv(all_cleaned_tweets, all_tweets_fp, row.names=FALSE)
