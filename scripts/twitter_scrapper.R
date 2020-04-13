@@ -11,7 +11,7 @@ twitter_scapper = function(inputted_accounts_fp){
   
   # reading Jason and Collaborators inputted twitter account file
   # and identifying newly added twitter accounts
-  inputted_accounts = read.csv(inputted_accounts_fp)
+  inputted_accounts = read.csv(inputted_accounts_fp, na.strings=c("null",""," "))
   cleaned_inputs = clean_inputted_accounts(inputted_accounts)
   accounts = identify_new_accounts(cleaned_inputs, accounts)
   
@@ -28,7 +28,8 @@ twitter_scapper = function(inputted_accounts_fp){
 clean_inputted_accounts = function(inputted_accounts){
   # clean the inputted accounts data for downstream use.
   cleaned_input = inputted_accounts %>%
-    mutate(twitter_handle = str_remove(Twitter.Handle,"@|\n"),
+    mutate(twitter_handle = str_remove(Twitter.Handle,"@"),
+           twitter_handle = str_remove(Twitter.Handle,"\n"),
            twitter_handle = as.character(twitter_handle)) %>% # remove @
     drop_na(twitter_handle) %>% # remove rows without handles
     select(twitter_handle) # extract handle column
@@ -114,17 +115,18 @@ cache_tweets = function(tweets){
   tweets_fp = paste0('data/data_dump/', tweets_filename)
   write.csv(tweets, tweets_fp, row.names=FALSE)
   
-  return (c(tweets_filename, tweets_fp, current_datetime))
+  return (c(tweets_filename, tweets_fp))
 }
 
 update_data_dump_metadata = function(data_dump_meta, tweets_file_info){
-  new_data_dump = data.frame(file_name=tweets_file_info[1], file_path=tweets_file_info[2], created_at=tweets_file_info[3])
+  new_data_dump = data.frame(file_name=tweets_file_info[1], file_path=tweets_file_info[2], created_at=Sys.time())
   data_dump_meta = rbind(data_dump_meta, new_data_dump)
   write.csv(data_dump_meta, 'data/data_dump/data_dump_meta.csv', row.names=FALSE)
 }
 
 load_accounts = function(accounts_fp='data/data_dump/accounts.csv'){
-  accounts = read.csv('data/data_dump/accounts.csv', stringsAsFactors=FALSE)
+  accounts = read.csv('data/data_dump/accounts.csv', stringsAsFactors=FALSE, na.strings=c("null",""," "))
+  accounts = accounts[!is.na(accounts$twitter_handle), ]
   
   if (nrow(accounts) > 0){
     accounts$added_at = as.POSIXct(accounts$added_at)
@@ -134,6 +136,17 @@ load_accounts = function(accounts_fp='data/data_dump/accounts.csv'){
 }
 
 update_accounts = function(accounts){
-  accounts$is_new_handle = FALSE
+  
+  most_recent = twitter_posts %>% 
+    mutate(twitter_handle = screen_name,
+           twitter_handle = str_remove(screen_name, '@')) %>%
+    group_by(twitter_handle) %>%
+    filter(created_at == max(created_at)) %>%
+    summarize(tweet_id)
+  
+  accounts = accounts %>%
+    mutate(most_recent_tweet = replace(most_recent_tweet, twitter_handle %in% most_recent$twitter_handle, most_recent$tweet_id),
+           is_new_handle = if_else(is.na(most_recent_tweet), TRUE, FALSE))
+  
   write.csv(accounts, 'data/data_dump/accounts.csv', row.names=FALSE)
 }

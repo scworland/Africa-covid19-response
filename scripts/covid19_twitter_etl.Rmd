@@ -25,7 +25,6 @@ library(text2vec)
 library(tidyverse)
 
 theme_set(theme_bw(base_size=20))
-twitter_posts <- read_csv("../data/twitter_url_complete.csv")
 stop_words = stopwords('en')
 ```
 
@@ -39,6 +38,61 @@ Here's an initial ETL pipeline to clean and prep text data from tweets. Pipeline
 provide better results and more context.
 
 The text that i am going to vectorize off of is stored in the normalized column. I created this column so i can store the original text from the tweet (further thought is required in how to organize the processed data).
+
+# Fetch Most Recent Tweet Per Account
+
+
+```{r}
+accounts = read_csv('../data/data_dump/accounts.csv')
+accounts = accounts[accounts$twitter_handle != 'null', ]
+accounts = accounts[!is.na(accounts$twitter_handle), ]
+# accounts = distinct(accounts, twitter_handle, .keep_all=TRUE)
+```
+
+```{r}
+most_recent = twitter_posts %>% 
+  mutate(twitter_handle = screen_name,
+         twitter_handle = str_remove(screen_name, '@')) %>%
+  group_by(twitter_handle) %>%
+  filter(created_at == max(created_at)) %>%
+  summarize(tweet_id)
+
+accounts = accounts %>%
+  mutate(most_recent_tweet = replace(most_recent_tweet, twitter_handle %in% most_recent$twitter_handle, most_recent$tweet_id),
+         is_new_handle = if_else(is.na(most_recent_tweet), TRUE, FALSE))
+
+```
+
+## Saving accounts that have been scrapped
+
+I hit the api limit with twitter so i need to mainly remove the accounts that were scrapped and rerun the scrapper until i get and inital scrapping of as many timelines as possible. One i hit all of the timelines my 
+scrapping system will work automatically. An additionally, problem i need to look into is how far back our twitter data goes. If tweets for a particular account do not got all the way back to decemeber then i ll need to try and rescrap their
+
+```{r}
+scrapped_accounts = accounts[!is.na(accounts$most_recent_tweet), ]
+accounts = accounts[is.na(accounts$most_recent_tweet), ]
+
+write.csv(scrapped_accounts, 'data/data_dump/accounts.csv', row.names = FALSE)
+write.csv(scrapped_accounts, 'data/data_dump/already_scrapped_accounts.csv', row.names = FALSE)
+```
+
+## Creating the non-scrapped new sources file
+
+```{r}
+news_sites <- read_csv('data/africa_news_sites_4_6_2020.csv', na = c("null",""," ")) %>%
+    set_names(c("news_url", "twitter_handle")) %>%
+    drop_na(twitter_handle) %>%
+    mutate(twitter_handle=str_remove(twitter_handle, '@'))
+
+news_sites
+```
+
+```{r}
+not_scrapped_news = news_sites %>% filter(!twitter_handle %in% accounts$twitter_handle)
+write.csv(not_scrapped_news, 'data/not_scrapped_news_sites.csv', row.names = FALSE)
+```
+
+# Twitter ETL Pipeline
 
 ```{r}
 # stop word regular expression
@@ -108,31 +162,162 @@ tibble(x=lda_umap$layout[,1], y = lda_umap$layout[,2], lead_topic=lead_topic) %>
   geom_point()
 ```
 
-# Functionizing Code
+# Testing ability to fetch lastest datadump.
 
 ```{r}
+data_dump = read.csv('data/data_dump/data_dump_meta.csv')
+data_dump$created_at = as.Date(data_dump$created_at)
+```
+
+```{r}
+data_dump$created_at = as.Date(data_dump$created_at)
+raw_data_fp = data_dump$file_path[data_dump$created_at == max(data_dump$created_at)]
+```
+
+# Functionizing Code
+
+## ETL Pipeline
+
+ETL pipeline assumes it's ran immediately after we scrapped twitter. I ll need to design it to be more robust and dynamic.
+
+```{r}
+twitter_etl = function(new_model=FALSE){
+  data_dump = fetch_data_dump_meta()
+  raw_tweets = fetch_raw_data(data_dump)
+  print ("cleaning raw data")
+  #clean tweets text and conduct topic modelling
+  cleaned_tweets = clean_data(raw_tweets)
+  print ("cleaned tweets")
+  # save both the cleaned twitter data and the topic embeddings
+  cache_cleaned_tweets(cleaned_tweets)
+  print ("saved tweets")
+}
+
+fetch_data_dump_meta = function(data_dump_dir='data/data_dump/'){
+   data_dump_fp = paste0(data_dump_dir, 'data_dump_meta.csv')
+   data_dump = read.csv(data_dump_fp)
+   
+   data_dump$created_at = as.Date(data_dump$created_at)
+   return(data_dump)
+}
+
+fetch_raw_data = function(data_dump){
+  raw_data_fp = data_dump$file_path[data_dump$created_at == max(data_dump$created_at)]
+  raw_data_fp = as.character(raw_data_fp)
+  
+  raw_data = read.csv(raw_data_fp)
+  return (raw_data)
+} 
 
 clean_data = function(raw_data){
   # cleaning text from tweets pulled from twitter.
-  cleaned_data = raw_data %>%
-                        mutate(text = gsub(" ?(f|ht)(tp)(s?)(://)(.*)[.|/](.*)", "", text), # remove urls embedded into the tweet text
-                              text = gsub("[\r\n']", "", text), # remove new line characters and replace them with white space
-                              text = gsub("[[:punct:]]+", "", text),
-                              text = removePunctuation(text), # remove punctuation
-                              normalized = str_replace_all(text, stopwords_regex, ""), # remove stop words from tweets
-                              normalized = stripWhitespace(normalized), # remove unnecessary white space from tweets text
-                              normalized = str_to_lower(normalized)) %>%  # then remove/strip unnecessary white space
-                        filter(text != "" | normalized != "") %>% # remove empty tweets
-                        mutate(language_used = detect_language(text)) %>% # detect language used in tweets text using cld2 model by google
-                        filter(language_used == "en") %>% # remove all non-english tweets
-                        mutate(normalized = lemmatize_strings(normalized), # finally normalize words by lemmantization.
-                               id = paste0(created_at, '_', screen_name)) # creating a guid by combining datetime and twitter handle
+  stopwords_regex = create_stopword_regex()
   
+  cleaned_data = raw_data %>%
+                    mutate(text = gsub(" ?(f|ht)(tp)(s?)(://)(.*)[.|/](.*)", "", text), # remove urls embedded into the tweet text
+                          text = gsub("[\r\n']", "", text), # remove new line characters and replace them with white space
+                          text = gsub("[[:punct:]]+", "", text),
+                          text = removePunctuation(text), # remove punctuation
+                          normalized = str_replace_all(text, stopwords_regex, ""), # remove stop words from tweets
+                          normalized = stripWhitespace(normalized), # remove unnecessary white space from tweets text
+                          normalized = str_to_lower(normalized)) %>%  # then remove/strip unnecessary white space
+                    filter(text != "" | normalized != "") %>% # remove empty tweets
+                    mutate(language_used = detect_language(text)) %>% # detect language used in tweets text using cld2 model by google
+                    filter(language_used == "en") %>% # remove all non-english tweets
+                    mutate(normalized = lemmatize_strings(normalized)) # finally normalize words by lemmantization.
+  
+  print ("cleaned text. now trying to detect country")
+  cleaned_data = detect_country(cleaned_data)
+  print ("detected countries in tweets.")
   # cache cleaned tweets.
-  write.csv(cleaned_data, file=paste0('data/cleaned_twitter_data_', Sys.time()))
   return (cleaned_data)
 }
 
+create_stopword_regex = function(){
+  # fetching stop words for english langauge and covid 19
+  covid_words = c('corona', 'coronavirus','virus', 'novel','covid', 'covid19', 'covid-19','pandemic', 'will')
+  stop_words = c(stopwords('en'), covid_words)
+  stopwords_regex = paste(stop_words, collapse = '\\b|\\b')
+  stopwords_regex = paste0('\\b', stopwords_regex, '\\b')
+  
+  return (stopwords_regex)
+}
+
+detect_country = function(cleaned_data){
+  # trying to detect the country being discussed in tweets via a dictionary look up,
+  # this is a really primitive method of searching for countries.
+  cleaned_data$country = NULL
+  african_countries = c('algeria','angola','benin','central african republic','chad','congo','cote d ivoire','djibouti','egypt','equatorial guinea','eritrea','eswatini','ethiopia',
+                        'gabon','gambia','ghana','guinea','kenya','madagascar','mauritania','mauritius','morocco','namibia','niger','nigeria','rwanda','senegal','seychelles','somalia',
+                        'south africa','sudan','tanzania','togo','tunisia','uganda','zambia','zimbabwe','mozambique','libya','guinea bissau','mali','botswana','burundi','sierra leone')
+  
+  
+  for (country in african_countries){
+        index = grep(country, cleaned_data$normalized)
+        cleaned_data[index, 'country'] = country
+  }
+  
+  return (cleaned_data)
+}
+
+cache_cleaned_tweets = function(cleaned_tweets){
+  # getting filepath information
+  cleaned_data_dir = 'data/cleaned_data/'
+  current_datetime = format(Sys.time(), "%Y_%m_%d_%I_%M_%p")
+  dump_fp = paste0(cleaned_data_dir, "covid19_africa_cleaned_tweets_", current_datetime, ".csv")
+  all_tweets_fp = paste0(cleaned_data_dir, "covid19_africa_cleaned_tweets.csv")
+  
+  # merge cleaned tweets with all other scrapped tweets together
+  all_cleaned_tweets = read.csv(all_tweets_fp)
+  all_cleaned_tweets = rbind(all_cleaned_tweets, cleaned_tweets)
+  
+  write.csv(all_cleaned_tweets, all_tweets_fp, row.names=FALSE)
+  write.csv(cleaned_tweets, dump_fp, row.names=FALSE)
+}
+
+```
+
+## Testing ETL Pipeline
+
+```{r}
+twitter_etl()
+```
+
+## Topic Modeling Pipeline - Rough Draft (NOT READY FOR PRIME TIME!)
+
+```{r}
+model_tweets_topic = function(cleaned_data, new_model, model_fp='../data/lda_twitter.Rds') {
+  
+  # fetch topic model and then identify embedded topics in tweets
+  lda = fetch_topic_model(new_model, model_fp)
+  tweets_dtm = create_dtm(cleaned_data)
+  topic_embeddings = finding_tweets_topics(tweets_dtm)
+  topic_keywords = get_key_words(topic_embeddings, lda, new_model)
+  
+  # find the top topic in a given tweet
+  cleaned_data = find_top_topic(topic_embeddings, topic_keywords, cleaned_data)
+  save_topic_models(lda, topic_keywords, new_model)
+  
+  return (list('data'=cleaned_data, 'topics'=topic_embeddings))
+  
+}
+
+fetch_topic_model = function(new_model, model_fp){
+  
+  if (new_model | !file.exists(model_fp)){
+      lda = new_topic_model()
+  } else {
+      lda = readRDS(model_fp)
+  }
+  
+  return (lda)
+}
+
+new_topic_model = function(){
+  # create a new LDA model.
+  lda = LDA$new(n_topics=10, doc_topic_prior=0.1, topic_word_prior=0.01)
+  return(lda)
+}
 
 create_dtm = function(cleaned_data){
   # generate a document term matrix. First i tokenize the tweets text and then create a document term matrix.
@@ -147,29 +332,54 @@ create_dtm = function(cleaned_data){
   return (dtm)
 }
 
-new_topic_model = function(){
-  # create a new LDA model.
-  lda = LDA$new(n_topics=10, doc_topic_prior=0.1, topic_word_prior=0.01)
-  return(lda)
-}
-
-topic_embedding = function(dtm, lda){
+finding_tweets_topics = function(dtm, lda){
   # generate topic embedding from document term matrix using LDA
   embedding = lda$fit_transform(x=dtm, n_iter=1000, convergence_tol=0.001, n_check_convergence=25)
   return (embedding)
 }
 
+get_key_words = function(embedding, lda, new_model, keywords_fp='../data/cleaned_data/topics/topic_keywords.csv'){
+  
+  if (new_model){
+    topic_keywords = fetch_topic_key_words(embedding, lda)
+  } else {
+    topic_keywords = read.csv(keywords_fp)
+  }
+  
+  return (topic_keywords)
+}
+
 fetch_topic_key_words = function(embedding, lda){
   # naming the topic columns by there top 5 key words.
+  topic = c()
   topic_key_words = c()
   
   for (i in 1:ncol(embedding)){
-       key_words = paste(lda$get_top_words(n=5)[, i], collapse="_")
-       topic_key_words = c(topic_key_words, key_words)
-    }
-    
-    colnames(embedding) = topic_key_words
-    return (embedding)
+     topic = c(topic, paste0('topic_', i))   
+     
+     key_words = paste(lda$get_top_words(n=5)[, i], collapse=" ")
+     topic_key_words = c(topic_key_words, key_words)
+  }
+  
+  topic_keywords = data.frame(topic=topic, key_words=topic_key_words)
+  return (topic_keywords)
+}
+
+find_top_topic = function(topic_embeddings, topic_keywords, cleaned_data){
+  colnames(topic_embeddings) = topic_keywords$key_words
+  tweets_top_topic = colnames(topic_embeddings)[apply(topic_embeddings, 1, which.max)]
+  cleaned_data$top_topic = tweets_top_topic
+  
+  return (cleaned_data)
+}
+
+save_topic_models = function(lda, topic_keywords, new_model, model_fp='../data/lda_twitter.Rds', keywords_fp='../data/cleaned_data/topics/topic_keywords.csv'){
+  
+  if (new_model | !file.exists(model_fp)){
+    saveRDS(lda, model_fp)
+    write.csv(topic_keywords, file=keywords_fp, row.name=FALSE)
+  }
+  
 }
 
 visualize_topic_embeddings = function(embedding){
@@ -182,5 +392,4 @@ visualize_topic_embeddings = function(embedding){
     ggplot(aes(x=x, y=y, colour=topic_key_words)) +
     geom_point()
 }
-
 ```
