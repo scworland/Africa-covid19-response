@@ -43,7 +43,25 @@ The text that i am going to vectorize off of is stored in the normalized column.
 
 
 ```{r}
-accounts = read_csv('../data/data_dump/accounts.csv')
+twitter_posts = read.csv('data/data_dump/covid19_africa_raw_tweets_2020_04_14_09_00_am.csv')
+twitter_posts$created_at = as.POSIXct(twitter_posts$created_at)
+```
+
+```{r}
+scrapped = data.frame(twitter_handle=unique(twitter_posts$screen_name))
+
+new_accounts = scrapped %>%
+            mutate(added_at=Sys.time(), 
+                   is_new_handle=FALSE, 
+                   most_recent_tweet=FALSE)
+```
+
+```{r}
+new_accounts
+```
+
+```{r}
+accounts = read_csv('data/data_dump/already_scrapped_accounts.csv')
 accounts = accounts[accounts$twitter_handle != 'null', ]
 accounts = accounts[!is.na(accounts$twitter_handle), ]
 # accounts = distinct(accounts, twitter_handle, .keep_all=TRUE)
@@ -51,15 +69,16 @@ accounts = accounts[!is.na(accounts$twitter_handle), ]
 
 ```{r}
 most_recent = twitter_posts %>% 
-  mutate(twitter_handle = screen_name,
-         twitter_handle = str_remove(screen_name, '@')) %>%
-  group_by(twitter_handle) %>%
-  filter(created_at == max(created_at)) %>%
-  summarize(tweet_id)
+                distinct(screen_name, .keep_all=TRUE) %>% 
+                mutate(twitter_handle = screen_name,
+                       twitter_handle = str_remove(screen_name, '@')) %>%
+                group_by(twitter_handle) %>%
+                filter(tweet_id == max(tweet_id))
 
-accounts = accounts %>%
-  mutate(most_recent_tweet = replace(most_recent_tweet, twitter_handle %in% most_recent$twitter_handle, most_recent$tweet_id),
-         is_new_handle = if_else(is.na(most_recent_tweet), TRUE, FALSE))
+# most_recent
+new_accounts = new_accounts %>%
+                  mutate(most_recent_tweet = replace(most_recent_tweet, twitter_handle %in% most_recent$twitter_handle, most_recent$tweet_id),
+                         is_new_handle = if_else(is.na(most_recent_tweet), TRUE, FALSE))
 
 ```
 
@@ -69,11 +88,10 @@ I hit the api limit with twitter so i need to mainly remove the accounts that we
 scrapping system will work automatically. An additionally, problem i need to look into is how far back our twitter data goes. If tweets for a particular account do not got all the way back to decemeber then i ll need to try and rescrap their
 
 ```{r}
-scrapped_accounts = accounts[!is.na(accounts$most_recent_tweet), ]
-accounts = accounts[is.na(accounts$most_recent_tweet), ]
+accounts = rbind(accounts, new_accounts)
 
-write.csv(scrapped_accounts, 'data/data_dump/accounts.csv', row.names = FALSE)
-write.csv(scrapped_accounts, 'data/data_dump/already_scrapped_accounts.csv', row.names = FALSE)
+# write.csv(scrapped_accounts, 'data/data_dump/accounts.csv', row.names = FALSE)
+write.csv(accounts, 'data/data_dump/already_scrapped_accounts.csv', row.names = FALSE)
 ```
 
 ## Creating the non-scrapped new sources file

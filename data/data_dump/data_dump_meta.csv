@@ -1,2 +1,3 @@
-"","file_name","file_path","created_at"
-"1","covid19_africa_raw_tweets_2020_04_12_11_56_am.csv","data/data_dump/covid19_africa_raw_tweets_2020_04_12_11_56_am.csv",2020-04-12 14:58:23
+﻿file_name,file_path,created_at
+covid19_africa_raw_tweets_2020_04_12_11_56_am.csv,data/data_dump/covid19_africa_raw_tweets_2020_04_12_11_56_am.csv,13/04/2020
+covid19_africa_raw_tweets_2020_04_14_09_00_am.csv,data/data_dump/covid19_africa_raw_tweets_2020_04_14_09_00_am.csv,14/04/2020

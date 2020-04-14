@@ -2,7 +2,7 @@ library(dplyr)
 library(rtweet)
 library(tidyverse)
 
-twitter_scapper = function(inputted_accounts_fp){
+twitter_scrapper = function(inputted_accounts_fp, only_new_accounts=FALSE){
   # wrap function to scrap tweets from twitter that discuss covid-19 in Africa
   
   # loading known twitter accounts that discuss covid-19 in Africa and data dump metadata
@@ -16,7 +16,7 @@ twitter_scapper = function(inputted_accounts_fp){
   accounts = identify_new_accounts(cleaned_inputs, accounts)
   
   # fetch tweets from twitter accounts and extract tweets that discuss covid-19
-  tweets = fetch_tweets(accounts)
+  tweets = fetch_tweets(accounts, only_new_accounts)
   tweets = extract_covid19_tweets(tweets)
   
   # save tweets to data dump directory, update data dump metadata, and update accounts metadata
@@ -50,7 +50,7 @@ identify_new_accounts = function(cleaned_input, accounts){
   return (accounts)
 }
 
-fetch_tweets = function(accounts){
+fetch_tweets = function(accounts, only_new_accountsQ){
   # fetch acount timeline tweets from twitter api for a given user
   timelines = data.frame()
   
@@ -64,7 +64,7 @@ fetch_tweets = function(accounts){
     timelines = rbind(timelines, new_timelines)
   }
   
-  if (length(known_accounts) > 0) {
+  if (length(known_accounts) > 0 & !only_new_accounts) {
     # fetch all tweets from the most recent tweet we have onwards
     known_timelines = fetch_most_recent_tweets(known_accounts) 
     timelines = rbind(timelines, known_timelines)
