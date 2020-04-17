@@ -21,8 +21,7 @@ file_extensions:
   - csv
   
 sources:
-  - scripts/twitter_scrapper.R
-  - scripts/twitter_etl.R
+  - scripts/etl_functions.R
 
 targets:
 
