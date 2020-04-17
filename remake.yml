@@ -1,0 +1,51 @@
+
+packages:
+  - tidyverse
+  - tm
+  - umap
+  - cld2
+  - rvest
+  - rtweet
+  - tidytext
+  - textstem
+  
+file_extensions:
+  - csv
+  
+sources:
+  - scripts/etl_functions.R
+
+targets:
+
+  accounts:
+    command: load_accounts(accounts_fp='data/data_dump/accounts.csv')
+
+  inputted_accounts:
+    command: read_accounts(file='data/africa_news_sites_input.csv')
+    
+  cleaned_inputs:
+    command: clean_inputted_accounts(inputted_accounts)
+  
+  accounts_new:
+    command: identify_new_accounts(cleaned_inputs, accounts)
+    
+  tweets_all:
+    command: fetch_tweets(accounts_new,only_new_accounts=TRUE)
+    
+  tweets_covid19:
+    command: extract_covid19_tweets(tweets_all)
+    
+  data/data_dump/covid19_africa_raw_tweets_2020_04_17_09_24_AM.csv:
+    command: write_csv(tweets_covid19,target_name)
+    
+  raw_tweets:
+    command: read_csv('data/data_dump/covid19_africa_raw_tweets_2020_04_17_09_24_AM.csv')
+    
+  cleaned_tweets:
+    command: clean_data(raw_tweets)
+    
+  combined_tweets:
+    command: combine_cleaned_tweets(cleaned_tweets,cached_file='data/cleaned_data/covid19_africa_cleaned_tweets.csv')
+    
+  data/cleaned_data/covid19_africa_cleaned_tweets.csv:
+    command: write_csv(combined_tweets,target_name)
