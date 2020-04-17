@@ -8,12 +8,15 @@ library(textstem)
 library(text2vec)
 library(tidyverse)
 
+source('twitter_topic_modelling.R')
+
 twitter_etl = function(new_model=FALSE){
   data_dump = fetch_data_dump_meta()
   raw_tweets = fetch_raw_data(data_dump)
   
   #clean tweets text and conduct topic modelling
   cleaned_tweets = clean_data(raw_tweets)
+  cleaned_tweets = model_tweets_topic(cleaned_tweets, new_model)
   
   # save both the cleaned twitter data and the topic embeddings
   cache_cleaned_tweets(cleaned_tweets)
@@ -101,6 +104,7 @@ cache_cleaned_tweets = function(cleaned_tweets){
   }
   
   all_cleaned_tweets = rbind(all_cleaned_tweets, cleaned_tweets)
+  all_cleaned_tweets = all_cleaned_tweets[2:length(all_cleaned_tweets), ]
   
   write.csv(all_cleaned_tweets, all_tweets_fp, row.names=FALSE)
   write.csv(cleaned_tweets, dump_fp, row.names=FALSE)

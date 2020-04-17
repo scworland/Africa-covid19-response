@@ -205,13 +205,14 @@ twitter_etl = function(new_model=FALSE){
   
   #clean tweets text and conduct topic modelling
   cleaned_tweets = clean_data(raw_tweets)
+  cleaned_tweets = model_tweets_topic(cleaned_tweets, new_model)
   
   # save both the cleaned twitter data and the topic embeddings
   cache_cleaned_tweets(cleaned_tweets)
 }
 
-fetch_data_dump_meta = function(data_dump_dir='data/data_dump/'){
-   data_dump_fp = paste0(data_dump_dir, 'data_dump_meta.csv')
+fetch_data_dump_meta = function(data_dump_dir='../data/data_dump/'){
+   data_dump_fp = paste0(data_dump_dir, '../data_dump_meta.csv')
    data_dump = read.csv(data_dump_fp)
    
    data_dump$created_at = as.Date(data_dump$created_at)
@@ -277,7 +278,7 @@ detect_country = function(cleaned_data){
 
 cache_cleaned_tweets = function(cleaned_tweets){
   # getting filepath information
-  cleaned_data_dir = 'data/cleaned_data/'
+  cleaned_data_dir = '../data/cleaned_data/'
   current_datetime = format(Sys.time(), "%Y_%m_%d_%I_%M_%p")
   dump_fp = paste0(cleaned_data_dir, "covid19_africa_cleaned_tweets_", current_datetime, ".csv")
   all_tweets_fp = paste0(cleaned_data_dir, "covid19_africa_cleaned_tweets.csv")
@@ -292,6 +293,7 @@ cache_cleaned_tweets = function(cleaned_tweets){
   }
   
   all_cleaned_tweets = rbind(all_cleaned_tweets, cleaned_tweets)
+  all_cleaned_tweets = all_cleaned_tweets[2:length(all_cleaned_tweets), ]
   
   write.csv(all_cleaned_tweets, all_tweets_fp, row.names=FALSE)
   write.csv(cleaned_tweets, dump_fp, row.names=FALSE)
@@ -299,34 +301,39 @@ cache_cleaned_tweets = function(cleaned_tweets){
 
 ```
 
-## Testing ETL Pipeline
+## Topic Modelling Functions - Being saved to twitter_topic_modeling.R
 
 ```{r}
-twitter_etl()
-```
-
-## Topic Modeling Pipeline - Rough Draft (NOT READY FOR PRIME TIME!)
-
-```{r}
-model_tweets_topic = function(cleaned_data, new_model, model_fp='../data/lda_twitter.Rds') {
+model_tweets_topic = function(cleaned_data, new_model=FALSE, model_fp='../data/topics/lda_twitter.Rds') {
   
   # fetch topic model and then identify embedded topics in tweets
+  new_model = check_model_exists(model_fp, new_model)
   lda = fetch_topic_model(new_model, model_fp)
-  tweets_dtm = create_dtm(cleaned_data)
-  topic_embeddings = finding_tweets_topics(tweets_dtm)
+  tweets_dtm = create_tweet_dtm(cleaned_data)
+  topic_embeddings = finding_tweets_topics(tweets_dtm, lda)
   topic_keywords = get_key_words(topic_embeddings, lda, new_model)
   
   # find the top topic in a given tweet
   cleaned_data = find_top_topic(topic_embeddings, topic_keywords, cleaned_data)
   save_topic_models(lda, topic_keywords, new_model)
+  save_topic_embeddings(topic_embeddings)
   
-  return (list('data'=cleaned_data, 'topics'=topic_embeddings))
+  return (cleaned_data)
   
+}
+
+check_model_exists = function(model_fp, new_model){
+  
+  if (!file.exists(model_fp)){
+    new_model = TRUE
+  } 
+  
+  return (new_model)
 }
 
 fetch_topic_model = function(new_model, model_fp){
   
-  if (new_model | !file.exists(model_fp)){
+  if (new_model){
       lda = new_topic_model()
   } else {
       lda = readRDS(model_fp)
@@ -341,11 +348,11 @@ new_topic_model = function(){
   return(lda)
 }
 
-create_dtm = function(cleaned_data){
+create_tweet_dtm = function(cleaned_data){
   # generate a document term matrix. First i tokenize the tweets text and then create a document term matrix.
   it = itoken(cleaned_data$normalized, 
              tokenizer = word_tokenizer,
-             ids = cleaned_data$id)
+             ids = cleaned_data$tweet_id)
 
   vocab = create_vocabulary(it)
   vectorizer = vocab_vectorizer(vocab)
@@ -360,7 +367,7 @@ finding_tweets_topics = function(dtm, lda){
   return (embedding)
 }
 
-get_key_words = function(embedding, lda, new_model, keywords_fp='../data/cleaned_data/topics/topic_keywords.csv'){
+get_key_words = function(embedding, lda, new_model, keywords_fp='../data/topics/topic_keywords.csv'){
   
   if (new_model){
     topic_keywords = fetch_topic_key_words(embedding, lda)
@@ -379,7 +386,7 @@ fetch_topic_key_words = function(embedding, lda){
   for (i in 1:ncol(embedding)){
      topic = c(topic, paste0('topic_', i))   
      
-     key_words = paste(lda$get_top_words(n=5)[, i], collapse=" ")
+     key_words = paste(lda$get_top_words(n=10)[, i], collapse=" ")
      topic_key_words = c(topic_key_words, key_words)
   }
   
@@ -388,21 +395,44 @@ fetch_topic_key_words = function(embedding, lda){
 }
 
 find_top_topic = function(topic_embeddings, topic_keywords, cleaned_data){
-  colnames(topic_embeddings) = topic_keywords$key_words
+  # extracting tweet topic
+  colnames(topic_embeddings) = topic_keywords$topic
   tweets_top_topic = colnames(topic_embeddings)[apply(topic_embeddings, 1, which.max)]
   cleaned_data$top_topic = tweets_top_topic
   
   return (cleaned_data)
 }
 
-save_topic_models = function(lda, topic_keywords, new_model, model_fp='../data/lda_twitter.Rds', keywords_fp='../data/cleaned_data/topics/topic_keywords.csv'){
+save_topic_models = function(lda, topic_keywords, new_model, model_fp='../data/topics/lda_twitter.Rds', keywords_fp='../data/topics/topic_keywords.csv'){
   
   if (new_model | !file.exists(model_fp)){
+    write.csv(topic_keywords, file=keywords_fp, row.names=FALSE, col.names=TRUE)
     saveRDS(lda, model_fp)
-    write.csv(topic_keywords, file=keywords_fp, row.name=FALSE)
+  }
+}
+
+
+save_topic_embeddings = function(topic_embeddings, topics_dir='../data/topics/'){
+  # need to rewrite this function because i am using a lot of duplicate code.
+  # getting filepath information
+  current_datetime = format(Sys.time(), "%Y_%m_%d_%I_%M_%p")
+  dump_fp = paste0(topics_dir, "covid19_africa_topics_", current_datetime, ".csv")
+  all_tweet_topics_fp = paste0(topics_dir, "covid19_africa_topics.csv")
+  
+  if (file.exists(all_tweet_topics_fp)){
+    all_tweets_topics = read.csv(all_tweet_topics_fp)
+  } else {
+    all_tweets_topics = data.frame(topic_1="",topic_2="",topic_3="",topic_4="",topic_5="",topic_6="",topic_7="",topic_8="",topic_9="",topic_10="")
   }
   
+  colnames(topic_embeddings) = colnames(all_tweets_topics)
+  all_tweets_topics = rbind(all_tweets_topics, topic_embeddings)
+  all_tweets_topics = all_tweets_topics[2:length(all_tweets_topics), ]
+  
+  write.csv(all_tweets_topics, all_tweet_topics_fp, row.names=FALSE, col.names=TRUE)
+  write.csv(topic_embeddings, dump_fp, row.names=FALSE, col.names=TRUE)
 }
+
 
 visualize_topic_embeddings = function(embedding){
   # visualizing all topic embeddings via umap projections
@@ -415,3 +445,11 @@ visualize_topic_embeddings = function(embedding){
     geom_point()
 }
 ```
+
+## Testing ETL Pipeline
+
+```{r}
+twitter_etl()
+```
+
+
