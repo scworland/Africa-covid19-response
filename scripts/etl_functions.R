@@ -293,7 +293,8 @@ combine_cleaned_tweets <- function(cleaned_tweets,cached_file){
   
   # merge cleaned tweets with all other scrapped tweets together
   if (file.exists(cached_file)){
-    all_cleaned_tweets = read_csv(cached_file)
+    all_cleaned_tweets = read_csv(cached_file) %>%
+      mutate(tweet_id = as.character(tweet_id))
   } else {
     all_cleaned_tweets = data.frame(screen_name="", created_at="", tweet_id="", geo_location="", text="", favorite_count="", 
                                     retweet_count="", hashtags="", linked_url="", normalized="", language_used="", country="")
@@ -328,3 +329,4 @@ cache_cleaned_tweets = function(cleaned_tweets){
   
   return("status: cleaned tweets cached")
 }
+

@@ -7,6 +7,8 @@ build_remake_pipeline <- function(file_name){
   sprintf(
 
  "
+target_default: %s
+
 packages:
   - tidyverse
   - tm
@@ -46,26 +48,26 @@ targets:
   %s:
     command: write_csv(tweets_covid19,target_name)
     
-  raw_tweets:
-    command: read_csv(%s)
-    
   cleaned_tweets:
-    command: clean_data(raw_tweets)
+    command: clean_data(tweets_covid19)
     
   combined_tweets:
     command: combine_cleaned_tweets(cleaned_tweets,cached_file=%s)
     
-  data/cleaned_data/covid19_africa_cleaned_tweets.csv:
-    command: write_csv(combined_tweets,target_name)",
+  %s:
+    command: write_csv(combined_tweets,target_name)
+    
+ ",
+paste0("data/data_dump/covid19_africa_cleaned_tweets_", format(Sys.time(), "%Y_%m_%d_%I_%M_%p"), ".csv"),
 paste0("data/data_dump/covid19_africa_raw_tweets_", format(Sys.time(), "%Y_%m_%d_%I_%M_%p"), ".csv"),
-paste0("'data/data_dump/covid19_africa_raw_tweets_", format(Sys.time(), "%Y_%m_%d_%I_%M_%p"), ".csv'"),
 list.files("data/cleaned_data", full.names = T) %>%
   file.info() %>%
   rownames_to_column(var='file') %>%
   filter(str_detect(file, 'covid19_africa_cleaned_tweets')) %>%
   filter(mtime == max(mtime)) %>%
   pull(file) %>%
-  paste0("'",.,"'")
+  paste0("'",.,"'"),
+paste0("data/data_dump/covid19_africa_cleaned_tweets_", format(Sys.time(), "%Y_%m_%d_%I_%M_%p"), ".csv")
 ) %>%
   cat(.,file=file_name)
 }

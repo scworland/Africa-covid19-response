@@ -12,3 +12,5 @@ add_functions_to_edges <- function() {
 environment(diagram_edges_label) <- asNamespace('remake')
 assignInNamespace("diagram_edges", diagram_edges_label, ns = "remake")
 }
+
+add_functions_to_edges()

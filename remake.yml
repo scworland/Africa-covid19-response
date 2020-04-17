@@ -1,4 +1,6 @@
 
+target_default: data/data_dump/covid19_africa_cleaned_tweets_2020_04_17_01_00_PM.csv
+
 packages:
   - tidyverse
   - tm
@@ -35,17 +37,16 @@ targets:
   tweets_covid19:
     command: extract_covid19_tweets(tweets_all)
     
-  data/data_dump/covid19_africa_raw_tweets_2020_04_17_09_24_AM.csv:
+  data/data_dump/covid19_africa_raw_tweets_2020_04_17_01_00_PM.csv:
     command: write_csv(tweets_covid19,target_name)
     
-  raw_tweets:
-    command: read_csv('data/data_dump/covid19_africa_raw_tweets_2020_04_17_09_24_AM.csv')
-    
   cleaned_tweets:
-    command: clean_data(raw_tweets)
+    command: clean_data(tweets_covid19)
     
   combined_tweets:
-    command: combine_cleaned_tweets(cleaned_tweets,cached_file='data/cleaned_data/covid19_africa_cleaned_tweets.csv')
+    command: combine_cleaned_tweets(cleaned_tweets,cached_file='data/cleaned_data/covid19_africa_cleaned_tweets_2020_04_14_11_03_am.csv')
     
-  data/cleaned_data/covid19_africa_cleaned_tweets.csv:
+  data/data_dump/covid19_africa_cleaned_tweets_2020_04_17_01_00_PM.csv:
     command: write_csv(combined_tweets,target_name)
+    
+ 
