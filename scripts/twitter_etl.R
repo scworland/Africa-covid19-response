@@ -1,12 +1,3 @@
-library(tm)
-library(umap)
-library(cld2)
-library(rvest)
-library(rtweet)
-library(tidytext)
-library(textstem)
-library(text2vec)
-library(tidyverse)
 
 twitter_etl = function(new_model=FALSE){
   data_dump = fetch_data_dump_meta()
@@ -19,21 +10,35 @@ twitter_etl = function(new_model=FALSE){
   cache_cleaned_tweets(cleaned_tweets)
 }
 
-fetch_data_dump_meta = function(data_dump_dir='data/data_dump/'){
-  data_dump_fp = paste0(data_dump_dir, 'data_dump_meta.csv')
-  data_dump = read.csv(data_dump_fp)
-  
-  data_dump$created_at = as.Date(data_dump$created_at)
-  return(data_dump)
+# fetch_data_dump_meta = function(data_dump_dir='data/data_dump/'){
+#   data_dump_fp = paste0(data_dump_dir, 'data_dump_meta.csv')
+#   data_dump = read.csv(data_dump_fp)
+#   
+#   data_dump$created_at = as.Date(data_dump$created_at)
+#   return(data_dump)
+# }
+
+fetch_raw_data <- function(path){
+
+  most_recent_file <- list.files(path, full.names = T) %>%
+    file.info() %>%
+    rownames_to_column(var='file') %>%
+    filter(str_detect(file, 'covid19_africa_raw')) %>%
+    filter(mtime == max(mtime)) %>%
+    pull(file)
+
+  raw_data <- read_csv(most_recent_file)
+
+  return(raw_data)
 }
 
-fetch_raw_data = function(data_dump){
-  raw_data_fp = data_dump$file_path[data_dump$created_at == max(data_dump$created_at)]
-  raw_data_fp = as.character(raw_data_fp)
-  
-  raw_data = read.csv(raw_data_fp)
-  return (raw_data)
-} 
+# fetch_raw_data = function(data_dump){
+#   raw_data_fp = data_dump$file_path[data_dump$created_at == max(data_dump$created_at)]
+#   raw_data_fp = as.character(raw_data_fp)
+#   
+#   raw_data = read.csv(raw_data_fp)
+#   return (raw_data)
+# } 
 
 clean_data = function(raw_data){
   # cleaning text from tweets pulled from twitter.
@@ -84,6 +89,22 @@ detect_country = function(cleaned_data){
   return (cleaned_data)
 }
 
+combine_cleaned_tweets <- function(cleaned_tweets,cached_file){
+  
+  # merge cleaned tweets with all other scrapped tweets together
+  if (file.exists(cached_file)){
+    all_cleaned_tweets = read_csv(cached_file)
+  } else {
+    all_cleaned_tweets = data.frame(screen_name="", created_at="", tweet_id="", geo_location="", text="", favorite_count="", 
+                                    retweet_count="", hashtags="", linked_url="", normalized="", language_used="", country="")
+    colnames(all_cleaned_tweets) = colnames(cleaned_tweets)
+  }
+  
+  all_cleaned_tweets = bind_rows(all_cleaned_tweets, cleaned_tweets)
+  
+}
+
+
 cache_cleaned_tweets = function(cleaned_tweets){
   # getting filepath information
   cleaned_data_dir = 'data/cleaned_data/'
@@ -104,4 +125,6 @@ cache_cleaned_tweets = function(cleaned_tweets){
   
   write.csv(all_cleaned_tweets, all_tweets_fp, row.names=FALSE)
   write.csv(cleaned_tweets, dump_fp, row.names=FALSE)
+  
+  return("status: cleaned tweets cached")
 }

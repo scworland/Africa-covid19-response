@@ -6,3 +6,5 @@
 *.DS_Store
 .Rproj.user
 Africa-covid19-response.Rproj
+.remake
+
