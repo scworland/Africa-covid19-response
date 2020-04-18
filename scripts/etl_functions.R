@@ -1,5 +1,8 @@
-## read accounts with nulls
+
+############### Using the Twitter API fetch tweets discussing COVID-19 in Africa using news agencies and government officials ###############
+
 read_accounts <- function(file){
+  ## read accounts with nulls
   data <- read_csv('data/africa_news_sites_input.csv',na = c("null",""," "))
   return(data)
 }
@@ -172,47 +175,7 @@ get_timeline_unlimited <- function(users, n){
   return(tweets)
 }
 
-
-twitter_etl = function(new_model=FALSE){
-  data_dump = fetch_data_dump_meta()
-  raw_tweets = fetch_raw_data(data_dump)
-  
-  #clean tweets text and conduct topic modelling
-  cleaned_tweets = clean_data(raw_tweets)
-  
-  # save both the cleaned twitter data and the topic embeddings
-  cache_cleaned_tweets(cleaned_tweets)
-}
-
-# fetch_data_dump_meta = function(data_dump_dir='data/data_dump/'){
-#   data_dump_fp = paste0(data_dump_dir, 'data_dump_meta.csv')
-#   data_dump = read.csv(data_dump_fp)
-#   
-#   data_dump$created_at = as.Date(data_dump$created_at)
-#   return(data_dump)
-# }
-
-fetch_raw_data <- function(path){
-  
-  most_recent_file <- list.files(path, full.names = T) %>%
-    file.info() %>%
-    rownames_to_column(var='file') %>%
-    filter(str_detect(file, 'covid19_africa_raw')) %>%
-    filter(mtime == max(mtime)) %>%
-    pull(file)
-  
-  raw_data <- read_csv(most_recent_file)
-  
-  return(raw_data)
-}
-
-# fetch_raw_data = function(data_dump){
-#   raw_data_fp = data_dump$file_path[data_dump$created_at == max(data_dump$created_at)]
-#   raw_data_fp = as.character(raw_data_fp)
-#   
-#   raw_data = read.csv(raw_data_fp)
-#   return (raw_data)
-# } 
+################# Cleaning Text of Scrapped Tweets ####################
 
 clean_data = function(raw_data){
   # cleaning text from tweets pulled from twitter.
@@ -263,12 +226,145 @@ detect_country = function(cleaned_data){
   return (cleaned_data)
 }
 
+########## Topic Modelling Tweets ############
+
+model_tweets_topic = function(cleaned_data, new_model=FALSE, model_fp='../data/topics/lda_twitter.Rds') {
+  
+  # fetch topic model and then identify embedded topics in tweets
+  new_model = check_model_exists(model_fp, new_model)
+  lda = fetch_topic_model(new_model, model_fp)
+  tweets_dtm = create_tweet_dtm(cleaned_data)
+  topic_embeddings = finding_tweets_topics(tweets_dtm, lda)
+  topic_keywords = get_key_words(topic_embeddings, lda, new_model)
+  
+  # find the top topic in a given tweet
+  cleaned_data = find_top_topic(topic_embeddings, topic_keywords, cleaned_data)
+  save_topic_models(lda, topic_keywords, new_model)
+  save_topic_embeddings(topic_embeddings)
+  
+  return (cleaned_data)
+  
+}
+
+check_model_exists = function(model_fp, new_model){
+  
+  if (!file.exists(model_fp)){
+    new_model = TRUE
+  } 
+  
+  return (new_model)
+}
+
+fetch_topic_model = function(new_model, model_fp){
+  
+  if (new_model){
+    lda = new_topic_model()
+  } else {
+    lda = readRDS(model_fp)
+  }
+  
+  return (lda)
+}
+
+new_topic_model = function(){
+  # create a new LDA model.
+  lda = LDA$new(n_topics=10, doc_topic_prior=0.1, topic_word_prior=0.01)
+  return(lda)
+}
+
+create_tweet_dtm = function(cleaned_data){
+  # generate a document term matrix. First i tokenize the tweets text and then create a document term matrix.
+  it = itoken(cleaned_data$normalized, 
+              tokenizer = word_tokenizer,
+              ids = cleaned_data$tweet_id)
+  
+  vocab = create_vocabulary(it)
+  vectorizer = vocab_vectorizer(vocab)
+  dtm = create_dtm(it, vectorizer)
+  
+  return (dtm)
+}
+
+finding_tweets_topics = function(dtm, lda){
+  # generate topic embedding from document term matrix using LDA
+  embedding = lda$fit_transform(x=dtm, n_iter=1000, convergence_tol=0.001, n_check_convergence=25)
+  return (embedding)
+}
+
+get_key_words = function(embedding, lda, new_model, keywords_fp='../data/topics/topic_keywords.csv'){
+  
+  if (new_model){
+    topic_keywords = fetch_topic_key_words(embedding, lda)
+  } else {
+    topic_keywords = read.csv(keywords_fp)
+  }
+  
+  return (topic_keywords)
+}
+
+fetch_topic_key_words = function(embedding, lda){
+  # naming the topic columns by there top 5 key words.
+  topic = c()
+  topic_key_words = c()
+  
+  for (i in 1:ncol(embedding)){
+    topic = c(topic, paste0('topic_', i))   
+    
+    key_words = paste(lda$get_top_words(n=10)[, i], collapse=" ")
+    topic_key_words = c(topic_key_words, key_words)
+  }
+  
+  topic_keywords = data.frame(topic=topic, key_words=topic_key_words)
+  return (topic_keywords)
+}
+
+find_top_topic = function(topic_embeddings, topic_keywords, cleaned_data){
+  # extracting tweet topic
+  colnames(topic_embeddings) = topic_keywords$topic
+  tweets_top_topic = colnames(topic_embeddings)[apply(topic_embeddings, 1, which.max)]
+  cleaned_data$top_topic = tweets_top_topic
+  
+  return (cleaned_data)
+}
+
+save_topic_models = function(lda, topic_keywords, new_model, model_fp='../data/topics/lda_twitter.Rds', keywords_fp='../data/topics/topic_keywords.csv'){
+  
+  if (new_model | !file.exists(model_fp)){
+    write.csv(topic_keywords, file=keywords_fp, row.names=FALSE, col.names=TRUE)
+    saveRDS(lda, model_fp)
+  }
+}
+
+
+save_topic_embeddings = function(topic_embeddings, topics_dir='../data/topics/'){
+  # need to rewrite this function because i am using a lot of duplicate code.
+  # getting filepath information
+  current_datetime = format(Sys.time(), "%Y_%m_%d_%I_%M_%p")
+  dump_fp = paste0(topics_dir, "covid19_africa_topics_", current_datetime, ".csv")
+  all_tweet_topics_fp = paste0(topics_dir, "covid19_africa_topics.csv")
+  
+  if (file.exists(all_tweet_topics_fp)){
+    all_tweets_topics = read.csv(all_tweet_topics_fp)
+  } else {
+    all_tweets_topics = data.frame(topic_1="",topic_2="",topic_3="",topic_4="",topic_5="",topic_6="",topic_7="",topic_8="",topic_9="",topic_10="")
+  }
+  
+  colnames(topic_embeddings) = colnames(all_tweets_topics)
+  all_tweets_topics = bind_rows(all_tweets_topics, topic_embeddings)
+  
+  write.csv(all_tweets_topics, all_tweet_topics_fp, row.names=FALSE, col.names=TRUE)
+  write.csv(topic_embeddings, dump_fp, row.names=FALSE, col.names=TRUE)
+}
+
+
+################ Combining all tweets that have been cleaned and topics modelled #################
+
 combine_cleaned_tweets <- function(cleaned_tweets, cached_file='data/covid_19_africa.csv'){
   
   # merge cleaned tweets with all other scrapped tweets together
   if (file.exists(cached_file)){
     all_cleaned_tweets = read_csv(cached_file) %>%
-    mutate(tweet_id = as.character(tweet_id))
+      mutate(tweet_id = as.character(tweet_id))
   } else {
     all_cleaned_tweets = data.frame(screen_name="", created_at="", tweet_id="", geo_location="", text="", favorite_count="", 
                                     retweet_count="", hashtags="", linked_url="", normalized="", language_used="", country="")
@@ -280,3 +376,4 @@ combine_cleaned_tweets <- function(cleaned_tweets, cached_file='data/covid_19_af
   return (all_cleaned_tweets)
   
 }
+

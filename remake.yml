@@ -46,7 +46,6 @@ targets:
   cleaned_tweets:
     command: clean_data(tweets_covid19)
     
-  # add topic modelling for data here
     
   # then cache these cleaned tweets
     

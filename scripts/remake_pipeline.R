@@ -51,13 +51,14 @@ targets:
   cleaned_tweets:
     command: clean_data(tweets_covid19)
 
-  
+  cleaned_and_modeled_tweets:
+    command: model_tweets_topic(cleaned_tweets, new_model=FALSE)
 
   %s:
-    command: write_csv(cleaned_tweets,target_name)
+    command: write_csv(cleaned_and_modeled_tweets,target_name)
     
   combined_tweets:
-    command: combine_cleaned_tweets(cleaned_tweets)
+    command: combine_cleaned_tweets(cleaned_and_modeled_tweets)
     
   data/covid_19_africa.csv:
     command: write_csv(combined_tweets,target_name)
