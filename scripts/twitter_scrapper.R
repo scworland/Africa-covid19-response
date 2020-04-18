@@ -98,7 +98,7 @@ fetch_most_recent_tweets = function(known_accounts){
     most_recent_tweet_id = current_account$most_recent_tweet_id
     account_twitter_handle = current_account$twitter_handle
     
-    fetched_data = get_timeline(account_twitter_handle, since_id=most_recent_tweet_id)
+    fetched_data = rtweet::get_timeline(account_twitter_handle, since_id=most_recent_tweet_id)
     most_recent_tweets = rbind(most_recent_tweets, fetched_data)
   }
   

@@ -1,29 +1,3 @@
-
-
-
-twitter_scrapper = function(inputted_accounts_fp, only_new_accounts=FALSE){
-  # wrap function to scrap tweets from twitter that discuss covid-19 in Africa
-  
-  # loading known twitter accounts that discuss covid-19 in Africa and data dump metadata
-  accounts = load_accounts()
-  data_dump_meta = read.csv('data/data_dump/data_dump_meta.csv', stringsAsFactors=FALSE)
-  
-  # reading Jason and Collaborators inputted twitter account file
-  # and identifying newly added twitter accounts
-  inputted_accounts = read.csv(inputted_accounts_fp, na.strings=c("null",""," "))
-  cleaned_inputs = clean_inputted_accounts(inputted_accounts)
-  accounts = identify_new_accounts(cleaned_inputs, accounts)
-  
-  # fetch tweets from twitter accounts and extract tweets that discuss covid-19
-  tweets = fetch_tweets(accounts, only_new_accounts)
-  tweets = extract_covid19_tweets(tweets)
-  
-  # save tweets to data dump directory, update data dump metadata, and update accounts metadata
-  tweets_file_info = cache_tweets(tweets)
-  update_data_dump_metadata(data_dump_meta, tweets_file_info)
-  update_accounts(accounts)
-}
-
 ## read accounts with nulls
 read_accounts <- function(file){
   data <- read_csv('data/africa_news_sites_input.csv',na = c("null",""," "))
@@ -99,7 +73,7 @@ fetch_most_recent_tweets = function(known_accounts){
     most_recent_tweet_id = current_account$most_recent_tweet_id
     account_twitter_handle = current_account$twitter_handle
     
-    fetched_data = get_timeline(account_twitter_handle, since_id=most_recent_tweet_id)
+    fetched_data = rtweet::get_timeline(account_twitter_handle, since_id=most_recent_tweet_id)
     most_recent_tweets = rbind(most_recent_tweets, fetched_data)
   }
   
@@ -289,12 +263,12 @@ detect_country = function(cleaned_data){
   return (cleaned_data)
 }
 
-combine_cleaned_tweets <- function(cleaned_tweets,cached_file){
+combine_cleaned_tweets <- function(cleaned_tweets, cached_file='data/covid_19_africa.csv'){
   
   # merge cleaned tweets with all other scrapped tweets together
   if (file.exists(cached_file)){
     all_cleaned_tweets = read_csv(cached_file) %>%
-      mutate(tweet_id = as.character(tweet_id))
+    mutate(tweet_id = as.character(tweet_id))
   } else {
     all_cleaned_tweets = data.frame(screen_name="", created_at="", tweet_id="", geo_location="", text="", favorite_count="", 
                                     retweet_count="", hashtags="", linked_url="", normalized="", language_used="", country="")
@@ -303,30 +277,6 @@ combine_cleaned_tweets <- function(cleaned_tweets,cached_file){
   
   all_cleaned_tweets = bind_rows(all_cleaned_tweets, cleaned_tweets)
   
+  return (all_cleaned_tweets)
+  
 }
-
-
-cache_cleaned_tweets = function(cleaned_tweets){
-  # getting filepath information
-  cleaned_data_dir = 'data/cleaned_data/'
-  current_datetime = format(Sys.time(), "%Y_%m_%d_%I_%M_%p")
-  dump_fp = paste0(cleaned_data_dir, "covid19_africa_cleaned_tweets_", current_datetime, ".csv")
-  all_tweets_fp = paste0(cleaned_data_dir, "covid19_africa_cleaned_tweets.csv")
-  
-  # merge cleaned tweets with all other scrapped tweets together
-  if (file.exists(all_tweets_fp)){
-    all_cleaned_tweets = read.csv(all_tweets_fp)
-  } else {
-    all_cleaned_tweets = data.frame(screen_name="", created_at="", tweet_id="", geo_location="", text="", favorite_count="", 
-                                    retweet_count="", hashtags="", linked_url="", normalized="", language_used="", country="")
-    colnames(all_cleaned_tweets) = colnames(cleaned_tweets)
-  }
-  
-  all_cleaned_tweets = rbind(all_cleaned_tweets, cleaned_tweets)
-  
-  write.csv(all_cleaned_tweets, all_tweets_fp, row.names=FALSE)
-  write.csv(cleaned_tweets, dump_fp, row.names=FALSE)
-  
-  return("status: cleaned tweets cached")
-}
-

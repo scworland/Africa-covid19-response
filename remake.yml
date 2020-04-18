@@ -10,6 +10,7 @@ packages:
   - rtweet
   - tidytext
   - textstem
+  - text2vec
   
 file_extensions:
   - csv
@@ -40,8 +41,14 @@ targets:
   data/data_dump/covid19_africa_raw_tweets_2020_04_17_01_00_PM.csv:
     command: write_csv(tweets_covid19,target_name)
     
+  # from here onwards i need to rework the functions
+    
   cleaned_tweets:
     command: clean_data(tweets_covid19)
+    
+  # add topic modelling for data here
+    
+  # then cache these cleaned tweets
     
   combined_tweets:
     command: combine_cleaned_tweets(cleaned_tweets,cached_file='data/cleaned_data/covid19_africa_cleaned_tweets_2020_04_14_11_03_am.csv')
