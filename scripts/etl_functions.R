@@ -39,14 +39,14 @@ fetch_tweets = function(accounts, only_new_accounts){
   timelines = data.frame()
   
   new_accounts = accounts %>% 
-    filter(is_new_handle == TRUE) %>% 
-    mutate(twitter_handle = str_remove(twitter_handle,"@")) %>%
-    pull(twitter_handle) 
+    dplyr::filter(is_new_handle == TRUE) %>% 
+    dplyr::mutate(twitter_handle = str_remove(twitter_handle,"@")) %>%
+    dplyr::pull(twitter_handle) 
   
   known_accounts = accounts %>% 
-    filter(is_new_handle == FALSE) %>% 
-    mutate(twitter_handle = str_remove(twitter_handle,"@")) %>%
-    pull(twitter_handle)
+    dplyr::filter(is_new_handle == FALSE) %>% 
+    dplyr::mutate(twitter_handle = str_remove(twitter_handle,"@")) %>%
+    dplyr::pull(twitter_handle)
   
   
   if (length(new_accounts) > 0){
@@ -87,12 +87,12 @@ extract_covid19_tweets = function(tweets){
   # searching for all tweets that discuss covid-19 via a regex key word search
   
   covid_posts = tweets %>%
-    mutate(text=tolower(text)) %>%
-    filter(stringr::str_detect(text, 'corona|coronavirus|virus|novel|covid|covid-19|pandemic')) %>%
-    select(screen_name,created_at,tweet_id=status_id,geo_location=location,
+    dplyr::mutate(text=tolower(text)) %>%
+    dplyr::filter(stringr::str_detect(text, 'corona|coronavirus|virus|novel|covid|covid-19|pandemic')) %>%
+    dplyr::select(screen_name,created_at,tweet_id=status_id,geo_location=location,
            text,favorite_count,retweet_count,hashtags,linked_url=urls_expanded_url) %>% # select specific columns
     unnest(linked_url) %>% # convert url from list to column
-    mutate(hashtags = set_names(hashtags, screen_name), # add names to list
+    dplyr::mutate(hashtags = set_names(hashtags, screen_name), # add names to list
            hashtags = map(hashtags, str_c, collapse=", ")) %>% # create char string
     unnest(hashtags) # convert list to column
   
@@ -124,7 +124,7 @@ load_accounts = function(accounts_fp='data/data_dump/accounts.csv'){
   return (accounts)
 }
 
-update_accounts = function(accounts){
+updating_accounts_metadata = function(accounts, twitter_posts){
   
   most_recent = twitter_posts %>% 
     mutate(twitter_handle = screen_name,
@@ -138,6 +138,8 @@ update_accounts = function(accounts){
            is_new_handle = if_else(is.na(most_recent_tweet), TRUE, FALSE))
   
   write.csv(accounts, 'data/data_dump/accounts.csv', row.names=FALSE)
+  
+  return (accounts)
 }
 
 
@@ -182,17 +184,17 @@ clean_data = function(raw_data){
   stopwords_regex = create_stopword_regex()
   
   cleaned_data = raw_data %>%
-    mutate(text = gsub(" ?(f|ht)(tp)(s?)(://)(.*)[.|/](.*)", "", text), # remove urls embedded into the tweet text
+    dplyr::mutate(text = gsub(" ?(f|ht)(tp)(s?)(://)(.*)[.|/](.*)", "", text), # remove urls embedded into the tweet text
            text = gsub("[\r\n']", "", text), # remove new line characters and replace them with white space
            text = gsub("[[:punct:]]+", "", text),
            text = removePunctuation(text), # remove punctuation
            normalized = str_replace_all(text, stopwords_regex, ""), # remove stop words from tweets
            normalized = stripWhitespace(normalized), # remove unnecessary white space from tweets text
            normalized = str_to_lower(normalized)) %>%  # then remove/strip unnecessary white space
-    filter(text != "" | normalized != "") %>% # remove empty tweets
-    mutate(language_used = detect_language(text)) %>% # detect language used in tweets text using cld2 model by google
-    filter(language_used == "en") %>% # remove all non-english tweets
-    mutate(normalized = lemmatize_strings(normalized)) # finally normalize words by lemmantization.
+    dplyr::filter(text != "" | normalized != "") %>% # remove empty tweets
+    dplyr::mutate(language_used = detect_language(text)) %>% # detect language used in tweets text using cld2 model by google
+    dplyr::filter(language_used == "en") %>% # remove all non-english tweets
+    dplyr::mutate(normalized = lemmatize_strings(normalized)) # finally normalize words by lemmantization.
   
   cleaned_data = detect_country(cleaned_data)
   # cache cleaned tweets.
@@ -228,7 +230,7 @@ detect_country = function(cleaned_data){
 
 ########## Topic Modelling Tweets ############
 
-model_tweets_topic = function(cleaned_data, new_model=FALSE, model_fp='../data/topics/lda_twitter.Rds') {
+model_tweets_topic = function(cleaned_data, new_model=FALSE, model_fp='data/topics/lda_twitter.Rds') {
   
   # fetch topic model and then identify embedded topics in tweets
   new_model = check_model_exists(model_fp, new_model)
@@ -268,19 +270,19 @@ fetch_topic_model = function(new_model, model_fp){
 
 new_topic_model = function(){
   # create a new LDA model.
-  lda = LDA$new(n_topics=10, doc_topic_prior=0.1, topic_word_prior=0.01)
+  lda = text2vec::LDA$new(n_topics=10, doc_topic_prior=0.1, topic_word_prior=0.01)
   return(lda)
 }
 
 create_tweet_dtm = function(cleaned_data){
   # generate a document term matrix. First i tokenize the tweets text and then create a document term matrix.
-  it = itoken(cleaned_data$normalized, 
-              tokenizer = word_tokenizer,
+  it = text2vec::itoken(cleaned_data$normalized, 
+              tokenizer = text2vec::word_tokenizer,
               ids = cleaned_data$tweet_id)
   
-  vocab = create_vocabulary(it)
-  vectorizer = vocab_vectorizer(vocab)
-  dtm = create_dtm(it, vectorizer)
+  vocab = text2vec::create_vocabulary(it)
+  vectorizer = text2vec::vocab_vectorizer(vocab)
+  dtm = text2vec::create_dtm(it, vectorizer)
   
   return (dtm)
 }
@@ -291,7 +293,7 @@ finding_tweets_topics = function(dtm, lda){
   return (embedding)
 }
 
-get_key_words = function(embedding, lda, new_model, keywords_fp='../data/topics/topic_keywords.csv'){
+get_key_words = function(embedding, lda, new_model, keywords_fp='data/topics/topic_keywords.csv'){
   
   if (new_model){
     topic_keywords = fetch_topic_key_words(embedding, lda)
@@ -327,7 +329,7 @@ find_top_topic = function(topic_embeddings, topic_keywords, cleaned_data){
   return (cleaned_data)
 }
 
-save_topic_models = function(lda, topic_keywords, new_model, model_fp='../data/topics/lda_twitter.Rds', keywords_fp='../data/topics/topic_keywords.csv'){
+save_topic_models = function(lda, topic_keywords, new_model, model_fp='data/topics/lda_twitter.Rds', keywords_fp='data/topics/topic_keywords.csv'){
   
   if (new_model | !file.exists(model_fp)){
     write.csv(topic_keywords, file=keywords_fp, row.names=FALSE, col.names=TRUE)
@@ -336,30 +338,41 @@ save_topic_models = function(lda, topic_keywords, new_model, model_fp='../data/t
 }
 
 
-save_topic_embeddings = function(topic_embeddings, topics_dir='../data/topics/'){
+save_topic_embeddings = function(topic_embeddings, topics_dir='data/topics/'){
   # need to rewrite this function because i am using a lot of duplicate code.
   # getting filepath information
+  print ("saving topic embeddings")
   current_datetime = format(Sys.time(), "%Y_%m_%d_%I_%M_%p")
   dump_fp = paste0(topics_dir, "covid19_africa_topics_", current_datetime, ".csv")
   all_tweet_topics_fp = paste0(topics_dir, "covid19_africa_topics.csv")
   
   if (file.exists(all_tweet_topics_fp)){
+    print ("file exists")
     all_tweets_topics = read.csv(all_tweet_topics_fp)
+    all_tweets_topics = rbind(all_tweets_topics, topic_embeddings)
+    
   } else {
-    all_tweets_topics = data.frame(topic_1="",topic_2="",topic_3="",topic_4="",topic_5="",topic_6="",topic_7="",topic_8="",topic_9="",topic_10="")
+    print ("file doesn't exist")
+    all_tweets_topics = data.frame(topic_1="",topic_2="",topic_3="",topic_4="",topic_5="",topic_6="",topic_7="",
+                                   topic_8="",topic_9="",topic_10="", iter="", loglikelihood="")
+    colnames(topic_embeddings) = colnames(all_tweets_topics)
+    print (topic_embeddings)
+    
+    all_tweets_topics = rbind(all_tweets_topics, topic_embeddings)
+    # all_tweets_topics = all_tweets_topics[2:length(all_tweets_topics), ]
+    print (all_tweets_topics)
   }
   
-  colnames(topic_embeddings) = colnames(all_tweets_topics)
-  all_tweets_topics = bind_rows(all_tweets_topics, topic_embeddings)
-  
-  write.csv(all_tweets_topics, all_tweet_topics_fp, row.names=FALSE, col.names=TRUE)
-  write.csv(topic_embeddings, dump_fp, row.names=FALSE, col.names=TRUE)
+  write.csv(all_tweets_topics, all_tweet_topics_fp, row.names=FALSE)
+  write.csv(topic_embeddings, dump_fp, row.names=FALSE)
 }
 
 
 ################ Combining all tweets that have been cleaned and topics modelled #################
 
-combine_cleaned_tweets <- function(cleaned_tweets, cached_file='data/covid_19_africa.csv'){
+combine_and_cache_cleaned_tweets <- function(cleaned_tweets, cached_file='data/covid_19_africa.csv'){
+  
+  print ("checking for all_cleaned_tweets")
   
   # merge cleaned tweets with all other scrapped tweets together
   if (file.exists(cached_file)){
@@ -370,10 +383,10 @@ combine_cleaned_tweets <- function(cleaned_tweets, cached_file='data/covid_19_af
                                     retweet_count="", hashtags="", linked_url="", normalized="", language_used="", country="")
     colnames(all_cleaned_tweets) = colnames(cleaned_tweets)
   }
+  print ("binding rows together")
+  all_cleaned_tweets = dbplyr::bind_rows(all_cleaned_tweets, cleaned_tweets)
   
-  all_cleaned_tweets = bind_rows(all_cleaned_tweets, cleaned_tweets)
-  
-  return (all_cleaned_tweets)
-  
+  print ("finished binding rows together now saving files")
+  write.csv(all_cleaned_tweets, cached_file, row.names=FALSE)
 }
 

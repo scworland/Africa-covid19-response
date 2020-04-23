@@ -40,31 +40,31 @@ targets:
     command: identify_new_accounts(cleaned_inputs, accounts)
     
   tweets_all:
-    command: fetch_tweets(accounts_new,only_new_accounts=TRUE)
+    command: fetch_tweets(accounts_new, only_new_accounts=TRUE)
     
   tweets_covid19:
     command: extract_covid19_tweets(tweets_all)
-    
+  
+  updated_accounts:
+    command: updating_accounts_metadata(accounts_new, tweets_covid19)
+  
   %s:
-    command: write_csv(tweets_covid19,target_name)
+    command: write_csv(tweets_covid19, target_name)
     
   cleaned_tweets:
     command: clean_data(tweets_covid19)
-
+  
   cleaned_and_modeled_tweets:
-    command: model_tweets_topic(cleaned_tweets, new_model=FALSE)
-
-  %s:
-    command: write_csv(cleaned_and_modeled_tweets,target_name)
-    
-  combined_tweets:
-    command: combine_cleaned_tweets(cleaned_and_modeled_tweets)
+    command: model_tweets_topic(cleaned_tweets, new_model=TRUE)
     
   data/covid_19_africa.csv:
-    command: write_csv(combined_tweets,target_name)
+    command: combine_and_cache_cleaned_tweets(cleaned_and_modeled_tweets, target_name)
     
+  %s:
+    command: write_csv(cleaned_and_modeled_tweets, target_name)
+  
  ",
-paste0("data/data_dump/covid19_africa_cleaned_tweets_", format(Sys.time(), "%Y_%m_%d_%I_%M_%p"), ".csv"),
+paste0("data/cleaned_data/covid19_africa_cleaned_tweets_", format(Sys.time(), "%Y_%m_%d_%I_%M_%p"), ".csv"),
 paste0("data/data_dump/covid19_africa_raw_tweets_", format(Sys.time(), "%Y_%m_%d_%I_%M_%p"), ".csv"),
 paste0("data/cleaned_data/covid19_africa_cleaned_tweets_", format(Sys.time(), "%Y_%m_%d_%I_%M_%p"), ".csv")
 ) %>%

@@ -146,7 +146,7 @@ load_accounts = function(accounts_fp='data/data_dump/accounts.csv'){
   return (accounts)
 }
 
-update_accounts = function(accounts){
+update_accounts = function(accounts, twitter_posts){
   
   most_recent = twitter_posts %>% 
     mutate(twitter_handle = screen_name,
@@ -159,7 +159,7 @@ update_accounts = function(accounts){
     mutate(most_recent_tweet = replace(most_recent_tweet, twitter_handle %in% most_recent$twitter_handle, most_recent$tweet_id),
            is_new_handle = if_else(is.na(most_recent_tweet), TRUE, FALSE))
   
-  write.csv(accounts, 'data/data_dump/accounts.csv', row.names=FALSE)
+  return (accounts)
 }
 
 
