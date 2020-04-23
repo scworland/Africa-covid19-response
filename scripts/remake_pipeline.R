@@ -1,4 +1,3 @@
-
 library(yaml)
 library(tidyverse)
 
@@ -57,12 +56,15 @@ targets:
   cleaned_and_modeled_tweets:
     command: model_tweets_topic(cleaned_tweets, new_model=TRUE)
     
+  all_cleaned_tweets:
+    command: combine_and_cache_cleaned_tweets(cleaned_and_modeled_tweets)
+
   data/covid_19_africa.csv:
-    command: combine_and_cache_cleaned_tweets(cleaned_and_modeled_tweets, target_name)
+    command: write_csv(all_cleaned_tweets, target_name)
     
   %s:
     command: write_csv(cleaned_and_modeled_tweets, target_name)
-  
+
  ",
 paste0("data/cleaned_data/covid19_africa_cleaned_tweets_", format(Sys.time(), "%Y_%m_%d_%I_%M_%p"), ".csv"),
 paste0("data/data_dump/covid19_africa_raw_tweets_", format(Sys.time(), "%Y_%m_%d_%I_%M_%p"), ".csv"),

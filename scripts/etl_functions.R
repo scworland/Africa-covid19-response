@@ -332,7 +332,7 @@ find_top_topic = function(topic_embeddings, topic_keywords, cleaned_data){
 save_topic_models = function(lda, topic_keywords, new_model, model_fp='data/topics/lda_twitter.Rds', keywords_fp='data/topics/topic_keywords.csv'){
   
   if (new_model | !file.exists(model_fp)){
-    write.csv(topic_keywords, file=keywords_fp, row.names=FALSE, col.names=TRUE)
+    write.csv(topic_keywords, file=keywords_fp, row.names=FALSE)
     saveRDS(lda, model_fp)
   }
 }
@@ -342,6 +342,7 @@ save_topic_embeddings = function(topic_embeddings, topics_dir='data/topics/'){
   # need to rewrite this function because i am using a lot of duplicate code.
   # getting filepath information
   print ("saving topic embeddings")
+  topic_embeddings = as.data.frame(topic_embeddings)
   current_datetime = format(Sys.time(), "%Y_%m_%d_%I_%M_%p")
   dump_fp = paste0(topics_dir, "covid19_africa_topics_", current_datetime, ".csv")
   all_tweet_topics_fp = paste0(topics_dir, "covid19_africa_topics.csv")
@@ -349,18 +350,12 @@ save_topic_embeddings = function(topic_embeddings, topics_dir='data/topics/'){
   if (file.exists(all_tweet_topics_fp)){
     print ("file exists")
     all_tweets_topics = read.csv(all_tweet_topics_fp)
-    all_tweets_topics = rbind(all_tweets_topics, topic_embeddings)
+    all_tweets_topics = bind_rows(all_tweets_topics, topic_embeddings)
     
   } else {
-    print ("file doesn't exist")
-    all_tweets_topics = data.frame(topic_1="",topic_2="",topic_3="",topic_4="",topic_5="",topic_6="",topic_7="",
-                                   topic_8="",topic_9="",topic_10="", iter="", loglikelihood="")
-    colnames(topic_embeddings) = colnames(all_tweets_topics)
-    print (topic_embeddings)
-    
-    all_tweets_topics = rbind(all_tweets_topics, topic_embeddings)
-    # all_tweets_topics = all_tweets_topics[2:length(all_tweets_topics), ]
-    print (all_tweets_topics)
+    colnames(topic_embeddings) = c('topic_1','topic_2','topic_3','topic_4','topic_5','
+                                   topic_6','topic_7','topic_8','topic_9','topic_10')
+    all_tweets_topics = topic_embeddings
   }
   
   write.csv(all_tweets_topics, all_tweet_topics_fp, row.names=FALSE)
@@ -378,15 +373,13 @@ combine_and_cache_cleaned_tweets <- function(cleaned_tweets, cached_file='data/c
   if (file.exists(cached_file)){
     all_cleaned_tweets = read_csv(cached_file) %>%
       mutate(tweet_id = as.character(tweet_id))
+    
+    all_cleaned_tweets = dbplyr::bind_rows(all_cleaned_tweets, cleaned_tweets)
   } else {
-    all_cleaned_tweets = data.frame(screen_name="", created_at="", tweet_id="", geo_location="", text="", favorite_count="", 
-                                    retweet_count="", hashtags="", linked_url="", normalized="", language_used="", country="")
-    colnames(all_cleaned_tweets) = colnames(cleaned_tweets)
+    all_cleaned_tweets = cleaned_tweets
   }
-  print ("binding rows together")
-  all_cleaned_tweets = dbplyr::bind_rows(all_cleaned_tweets, cleaned_tweets)
   
   print ("finished binding rows together now saving files")
-  write.csv(all_cleaned_tweets, cached_file, row.names=FALSE)
+  return (all_cleaned_tweets)
 }
 

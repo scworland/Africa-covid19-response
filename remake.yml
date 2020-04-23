@@ -1,5 +1,5 @@
 
-target_default: data/cleaned_data/covid19_africa_cleaned_tweets_2020_04_23_01_46_pm.csv
+target_default: data/cleaned_data/covid19_africa_cleaned_tweets_2020_04_23_02_15_pm.csv
 
 packages:
   - tidyverse
@@ -40,7 +40,7 @@ targets:
   updated_accounts:
     command: updating_accounts_metadata(accounts_new, tweets_covid19)
   
-  data/data_dump/covid19_africa_raw_tweets_2020_04_23_01_46_pm.csv:
+  data/data_dump/covid19_africa_raw_tweets_2020_04_23_02_15_pm.csv:
     command: write_csv(tweets_covid19, target_name)
     
   cleaned_tweets:
@@ -49,10 +49,13 @@ targets:
   cleaned_and_modeled_tweets:
     command: model_tweets_topic(cleaned_tweets, new_model=TRUE)
     
+  all_cleaned_tweets:
+    command: combine_and_cache_cleaned_tweets(cleaned_and_modeled_tweets)
+
   data/covid_19_africa.csv:
-    command: combine_and_cache_cleaned_tweets(cleaned_and_modeled_tweets, target_name)
+    command: write_csv(all_cleaned_tweets, target_name)
     
-  data/cleaned_data/covid19_africa_cleaned_tweets_2020_04_23_01_46_pm.csv:
+  data/cleaned_data/covid19_africa_cleaned_tweets_2020_04_23_02_15_pm.csv:
     command: write_csv(cleaned_and_modeled_tweets, target_name)
-  
+
  
